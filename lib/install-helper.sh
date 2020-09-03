@@ -4,7 +4,7 @@ function set_environment_exports {
     
     # Setting $BASH to maintain backwards compatibility
     if [[ $(ps -p $$ | grep bash)  ]]; then
-      echo "YES"
+      echo "YES $(ps -p $$ | grep bash)"
       ps -p $$
       # Getting the user's OS type in order to load the correct installation and configuration scripts
       if [[ "$OSTYPE" = "linux-gnu" ]]; then
