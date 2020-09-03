@@ -15,11 +15,11 @@ commandsList=(
     "gem install|*::default.gem.list"
 )
 
-source ./lib/helper.sh
-
 if [ ! -n "$GAUDI" ]; then
     GAUDI=${HOME}/.gaudi
 fi
+
+source $GAUDI/gaudi-helper/lib/helper.sh
 
 preexec() {
     
