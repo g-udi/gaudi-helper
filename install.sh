@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+source ./lib/install-helper.sh
+
 echo ""
 
 if [ ! -n "$GAUDI" ]; then
@@ -7,10 +9,11 @@ if [ ! -n "$GAUDI" ]; then
 fi
 
 if [ ! -d "$GAUDI" ]; then
-    printf "You don't have gaudi installed.. This helper requires gaudi to be installed first \\n\\n"
-    printf "Please check: https://github.com/ahmadassaf/gaudi on instructions to install gaudi"
+    printf "${RED}%s${NC}\n" "You don't have gaudi installed.. This helper requires gaudi to be installed first"
+    printf "%s${GREEN} %s${NC} %s\n" "Please check:" "https://github.com/ahmadassaf/gaudi" "on instructions to install gaudi"
+else
+    rm -rf "$GAUDI/gaudi-helper"
 fi
-
 
 # Prevent the cloned repository from having insecure permissions. Failing to do
 # so causes compinit() calls to fail with "command not found: compdef" errors
@@ -19,9 +22,14 @@ fi
 # precedence over umasks except for filesystems mounted with option "noacl".
 umask g-w,o-w
 
-env git clone --depth=1 https://github.com/ahmadassaf/gaudi.git "$GAUDI" || {
-    printf "Error: Cloning of gaudi into this machine failed :(\\n"
+env git clone --depth=1 https://github.com/ahmadassaf/gaudi-helper.git "$GAUDI/gaudi-helper" || {
+    printf "Error: Cloning of gaudi-helper into this machine failed :(\\n"
     exit 1
 }
 
-. "$GAUDI/setup.sh"
+if [[ $(ps -p $$ | grep bash)  ]]; then
+    set_environment_exports "source $HOME/.gaudi/gaudi-helper/lib/bash-prexec.sh" "bash"
+fi
+
+set_environment_exports "source $HOME/.gaudi/gaudi-helper/gaudi-helper.sh"
+printf "Do not forget now to enable the plugin by sourcing your .bash_profile, .bashrc or .zshrc\n"

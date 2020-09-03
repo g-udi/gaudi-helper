@@ -15,7 +15,7 @@ commandsList=(
     "gem install|*::default.gem.list"
 )
 
-source ./lib.sh
+source ./lib/helper.sh
 
 if [ ! -n "$GAUDI" ]; then
     GAUDI=${HOME}/.gaudi
@@ -33,6 +33,7 @@ preexec() {
 
         if [[ ${1% *} = "$install_command" ]]; then
             
+
             # If the installation command fails or if the software_info is not found make sure we do not run the command twice
             if [[ $(ps -p $$ | grep bash)  ]]; then
                 # shopt -s extdebug enables some debugging features with one of them checks for return value before executing original command.
@@ -41,6 +42,9 @@ preexec() {
                 shopt -s extdebug
             fi
 
+            if [[ ! -f $GAUDI/$list.sh ]]; then
+                printf "\n${RED}%s${NC} %s\n" "[ GAUDI ]" "Didn't find a valid ${command} gaudi list at:${GAUDI}" && return 1
+            fi
             
             local software_name=`echo "$1" | sed -e "s/$install_command //g"`
             local software_info=$(getSoftwareInfo $command $software_name "$info")
@@ -52,7 +56,7 @@ preexec() {
                 if grep -q $(echo "$software_name::") $GAUDI/$list.sh; then
                     printf "${GREEN}%s $software_name${NC}%s${RED}%s${NC}\n" "[ GAUDI ]" " was found and" " will not be added to the default $command list"
                 else
-                    gsed -i "\$i\\$(printf "\t%s" "\"$software_info")\"" $GAUDI/$list.sh
+                    gsed -i "\$i\\$(printf "\t%s" "\"$software_info")\"" $GAUDI/templates/lists/$list.sh
                     printf "${GREEN}%s${YELLOW} $software_name${NC}%s\n" "[ GAUDI ]" " was found and added to the default $command list"
                 fi
             fi
