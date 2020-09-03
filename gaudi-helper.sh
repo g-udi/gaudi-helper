@@ -42,7 +42,7 @@ preexec() {
                 shopt -s extdebug
             fi
 
-            if [[ ! -f $GAUDI/$list.sh ]]; then
+            if [[ ! -f $GAUDI/templates/lists/$list.sh ]]; then
                 printf "\n${RED}%s${NC} %s\n" "[ GAUDI ]" "Didn't find a valid ${command} gaudi list at:${GAUDI}" && return 1
             fi
             
