@@ -49,9 +49,7 @@ source $SOURCE_LOCATION/lib.sh
 
 @test "Should return the software name if no information is available (denoted by *)" {
   run getSoftwareInfo "tap" "koekeishiya/formulae" "*"
-  [ "$output" = "koekeishiya/formulae" ]
-  run getSoftwareInfo "pip" "pytorch" "*"
-  [ "$output" = "pytorch" ]
+  [ "$output" = "koekeishiya/formulae::" ]
   run getSoftwareInfo "gem" "bundler" "*"
-  [ "$output" = "bundler" ]
+  [ "$output" = "bundler::" ]
 }
