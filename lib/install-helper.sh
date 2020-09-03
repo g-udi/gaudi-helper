@@ -6,12 +6,12 @@ function set_environment_exports {
     if [[ $(ps -p $$ | grep bash)  ]]; then
       echo "YES"
       # Getting the user's OS type in order to load the correct installation and configuration scripts
-      if [[ "$OSTYPE" == "linux-gnu" ]]; then
+      if [[ "$OSTYPE" = "linux-gnu" ]]; then
           if ! grep -q "${1}" "${HOME}/.bashrc" ; then
             echo "Editing .bashrc to load on Terminal launch"
             printf "\n%s\n" "${1}" >> "${HOME}/.bashrc"
           fi
-      elif [[ "$OSTYPE" == "darwin"* ]]; then
+      elif [[ "$OSTYPE" = "darwin"* ]]; then
           if ! grep -q "${1}" "${HOME}/.bash_profile" ; then
             echo "Editing .bash_profile to load on Terminal launch"
             printf "\n%s\n" "${1}" >> "${HOME}/.bash_profile"
