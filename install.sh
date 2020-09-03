@@ -27,10 +27,7 @@ env git clone --depth=1 https://github.com/ahmadassaf/gaudi-helper.git "$GAUDI/g
     exit 1
 }
 
-printf "Do not forget now to enable the plugin by sourcing your .bash_profile, .bashrc or .zshrc\n"
-
-if [[ $(ps -p $$ | grep bash)  ]]; then
-    set_environment_exports "source $HOME/.gaudi/gaudi-helper/lib/bash-prexec.sh"
-fi
+set_environment_exports "source $HOME/.gaudi/gaudi-helper/lib/bash-prexec.sh"
 set_environment_exports "source $HOME/.gaudi/gaudi-helper/gaudi-helper.sh"
 
+printf "Do not forget now to enable the plugin by sourcing your .bash_profile, .bashrc or .zshrc\n"
