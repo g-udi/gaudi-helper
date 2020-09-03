@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-source ./lib/install-helper.sh
-
 echo ""
 
 if [ ! -n "$GAUDI" ]; then
     GAUDI=${HOME}/.gaudi
 fi
+
+source "$GAUDI/gaudi-helper/lib/install-helper.sh"
 
 if [ ! -d "$GAUDI" ]; then
     printf "${RED}%s${NC}\n" "You don't have gaudi installed.. This helper requires gaudi to be installed first"
