@@ -22,6 +22,7 @@ function set_environment_exports {
         if ! grep -q "${1}" "${HOME}/.zshrc" ; then
           printf "%s\n" "Noticed that you have Zsh installed (there might be some compatibility issues exporting there as well)"
           read -p "Are you sure you want to proceed exporting in your .zshrc ? [Y/N] " -n 1;
+          echo ""
           if [[ $REPLY =~ ^[Yy]$ ]]; then
             echo "Editing .zshrc to load on Terminal launch"
             printf "\n%s\n" "${1}" >> "${HOME}/.zshrc"
