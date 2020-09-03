@@ -17,9 +17,6 @@ function set_environment_exports {
         fi
     fi
 
-    if [[ $(ps -p $$ | grep bash)  ]]; then
-      
-
     # Check if we have a .zshrc regardless of the os .. and copy that to the zsh source file
     if [[ -f "$HOME/.zshrc" ]]; then
         if ! grep -q "${1}" "${HOME}/.zshrc" ; then
