@@ -31,22 +31,20 @@ preexec() {
         local info="${_commands#*|}"
         local command=$(echo $install_command | cut -f 1 -d " ")
 
-        if [[ ${1% *} == "$install_command" ]]; then
+        if [[ ${1% *} = "$install_command" ]]; then
             
             # If the installation command fails or if the software_info is not found make sure we do not run the command twice
             if [[ $(ps -p $$ | grep bash)  ]]; then
                 # shopt -s extdebug enables some debugging features with one of them checks for return value before executing original command.
                 # Note: shopt -u extdebug disable this feature so original command always get executed.
+                `echo "${1}"` || return 1
                 shopt -s extdebug
             fi
 
-            `echo "${1}"` || return 1
             
             local software_name=`echo "$1" | sed -e "s/$install_command //g"`
             local software_info=$(getSoftwareInfo $command $software_name "$info")
 
-            echo "software_info: $software_info"
-            
             if [[ ${#software_info} != 0 ]]; then
 
                 printf "\n${GREEN}%s${NC}%s ${YELLOW}%s${NC}\n" "[ GAUDI ]" " Detected a new $command installation. It will be added to the default $command list if it does not already exist"
@@ -54,7 +52,7 @@ preexec() {
                 if grep -q $(echo "$software_name::") $GAUDI/$list.sh; then
                     printf "${GREEN}%s $software_name${NC}%s${RED}%s${NC}\n" "[ GAUDI ]" " was found and" " will not be added to the default $command list"
                 else
-                    gsed -i "\$i $(echo "\"$software_info")\"" $GAUDI/$list.sh
+                    gsed -i "\$i\\$(printf "\t%s" "\"$software_info")\"" $GAUDI/$list.sh
                     printf "${GREEN}%s${YELLOW} $software_name${NC}%s\n" "[ GAUDI ]" " was found and added to the default $command list"
                 fi
             fi
