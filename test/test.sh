@@ -29,7 +29,7 @@ source $SOURCE_LOCATION/lib.sh
 
 @test "Should return correct information (Description and Website) for an existing npm package" {
   run getSoftwareInfo "npm" "npmrc" "npm view"
-  [ "$output" = "npmrc::Switch between different .npmrc files with ease and grace [36mhttps://github.com/deoxxa/npmrc[39m" ]
+  [ "$output" = "npmrc::Switch between different .npmrc files with ease and grace https://github.com/deoxxa/npmrc" ]
 }
 
 @test "Should return an error code and no information for a non-existent npm package" {
