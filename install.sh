@@ -28,7 +28,7 @@ env git clone --depth=1 https://github.com/ahmadassaf/gaudi-helper.git "$GAUDI/g
 }
 
 if [[ $(ps -p $$ | grep bash)  ]]; then
-    set_environment_exports "source $HOME/.gaudi/gaudi-helper/lib/bash-prexec.sh" "bash"
+    set_environment_exports "source $HOME/.gaudi/gaudi-helper/lib/bash-prexec.sh"
 fi
 
 set_environment_exports "source $HOME/.gaudi/gaudi-helper/gaudi-helper.sh"
