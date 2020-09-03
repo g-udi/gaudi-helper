@@ -53,7 +53,7 @@ preexec() {
 
                 printf "\n${GREEN}%s${NC}%s ${YELLOW}%s${NC}\n" "[ GAUDI ]" " Detected a new $command installation. It will be added to the default $command list if it does not already exist"
                 printf "${GREEN}%s${NC}%s${YELLOW}${software_info}${NC}\n" "[ GAUDI ]" " is about to add: "
-                if grep -q $(echo "$software_name::") $GAUDI/$list.sh; then
+                if grep -q $(echo "$software_name::") $GAUDI/templates/lists/$list.sh; then
                     printf "${GREEN}%s $software_name${NC}%s${RED}%s${NC}\n" "[ GAUDI ]" " was found and" " will not be added to the default $command list"
                 else
                     gsed -i "\$i\\$(printf "\t%s" "\"$software_info")\"" $GAUDI/templates/lists/$list.sh
