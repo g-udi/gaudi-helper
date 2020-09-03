@@ -14,7 +14,7 @@ source $SOURCE_LOCATION/lib.sh
 
 @test "Should return an error code and no information for a non-existent cask software" {
   run getSoftwareInfo "cask" "iDontExist!!!" "brew cask info"
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 1 ]
 }
 
 @test "Should return correct information (Description and Website) for an existing brew formula" {
@@ -24,7 +24,7 @@ source $SOURCE_LOCATION/lib.sh
 
 @test "Should return an error code and no information for a non-existent brew forumla" {
   run getSoftwareInfo "brew" "iDontExist!!!" "brew info"
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 1 ]
 }
 
 @test "Should return correct information (Description and Website) for an existing npm package" {
@@ -34,7 +34,7 @@ source $SOURCE_LOCATION/lib.sh
 
 @test "Should return an error code and no information for a non-existent npm package" {
   run getSoftwareInfo "npm" "iDontExist!!!" "npm view"
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 1 ]
 }
 
 @test "Should return correct information (Description and Website) for an existing pip package" {
@@ -44,7 +44,7 @@ source $SOURCE_LOCATION/lib.sh
 
 @test "Should return an error code and no information for a non-existent pip package" {
   run getSoftwareInfo "pip" "iDontExist!!!" "pip show"
-  [ "$status" -eq 0 ]
+  [ "$status" -eq 1 ]
 }
 
 @test "Should return the software name if no information is available (denoted by *)" {
