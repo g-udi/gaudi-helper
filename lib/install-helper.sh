@@ -18,7 +18,7 @@ function set_environment_exports {
     fi
 
     # Check if we have a .zshrc regardless of the os .. and copy that to the zsh source file
-    if [[ -f "$HOME/.zshrc" ]]; then
+    if [[ -f "$HOME/.zshrc" && $2 -eq "bash" ]]; then
         if ! grep -q "${1}" "${HOME}/.zshrc" ; then
           printf "%s\n" "Noticed that you have Zsh installed (there might be some compatibility issues exporting there as well)"
           read -p "Are you sure you want to proceed exporting in your .zshrc ? [Y/N] " -n 1;
