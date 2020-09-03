@@ -4,6 +4,7 @@ function set_environment_exports {
     
     # Setting $BASH to maintain backwards compatibility
     if [[ $(ps -p $$ | grep bash)  ]]; then
+      echo "YES"
       # Getting the user's OS type in order to load the correct installation and configuration scripts
       if [[ "$OSTYPE" == "linux-gnu" ]]; then
           if ! grep -q "${1}" "${HOME}/.bashrc" ; then
@@ -17,6 +18,7 @@ function set_environment_exports {
           fi
       fi
     else 
+      echo "NO"
       # Check if we have a .zshrc regardless of the os .. and copy that to the zsh source file
       if [[ -f "$HOME/.zshrc" ]]; then
           if ! grep -q "${1}" "${HOME}/.zshrc" ; then
