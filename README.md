@@ -7,8 +7,11 @@ This is a helper that accompanies the [Gaudi project](https://github.com/ahmadas
 You can install the helper by running the following command:
 
 ```sh
-gaudi install
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi-helper/master/install.sh)"
 ```
+
+<img width="1143" alt="image" src="https://github.com/user-attachments/assets/b66803b8-ebaf-4301-9056-47d1bb2401c0">
+
 
 ## How it works
 
