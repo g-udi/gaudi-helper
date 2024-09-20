@@ -279,7 +279,7 @@ __bp_install() {
     __bp_adjust_histcontrol
 
     # Issue #25. Setting debug trap for subshells causes sessions to exit for
-    # backgrounded subshell commands (e.g. (pwd)& ). Believe this is a bug in Bash.
+    # backgrounded subshell commands (e.g. (${PWD})& ). Believe this is a bug in Bash.
     #
     # Disabling this by default. It can be enabled by setting this variable.
     if [[ -n "${__bp_enable_subshells:-}" ]]; then

@@ -1,5 +1,5 @@
 
-SOURCE_LOCATION="$(pwd)"
+SOURCE_LOCATION="$(${PWD})"
 source $SOURCE_LOCATION/lib.sh
 
 @test "Should return correct information (Description and Website) for an existing cask software" {

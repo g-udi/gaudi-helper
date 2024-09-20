@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-function set_environment_exports {
+set_environment_exports() {
     
 
     # Setting $BASH to maintain backwards compatibility
@@ -33,4 +33,4 @@ function set_environment_exports {
     fi
 }
 
-export -f set_environment_exports
+export set_environment_exports
