@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+# shellcheck disable=SC1007,SC1087,SC2034,SC2124,SC2155
 # bash-preexec.sh -- Bash support for ZSH-like 'preexec' and 'precmd' functions.
 # https://github.com/rcaloras/bash-preexec
 #
