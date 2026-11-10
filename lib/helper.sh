@@ -13,6 +13,17 @@ gaudi_helper_strip_ansi() {
     sed -E $'s/\x1B\\[[0-9;?]*[ -/]*[@-~]//g'
 }
 
+# Collapse a value to a single trimmed line
+gaudi_helper_one_line() {
+    gaudi_helper_trim "$(printf "%s" "$*" | tr '\n\r\t' '   ')"
+}
+
+# Escape a value for use inside a double-quoted Bash string: Gaudi sources the
+# list files, so nothing in a description may be expanded or executed.
+gaudi_helper_escape_entry() {
+    printf "%s" "$1" | sed 's/[\\"$`]/\\&/g'
+}
+
 gaudi_helper_join_info() {
     local package_name="$1"
     local description="${2:-}"
@@ -59,25 +70,6 @@ gaudi_helper_npm_info() {
     gaudi_helper_join_info "$package_name" "$description" "$website"
 }
 
-gaudi_helper_pip_info() {
-    local package_name="$1"
-    local pip_command="${GAUDI_HELPER_PIP_COMMAND:-pip}"
-    local output=""
-    local description=""
-    local website=""
-
-    if command -v python3 >/dev/null 2>&1; then
-        output="$(python3 -m pip show "$package_name" 2>/dev/null || true)"
-    elif command -v "$pip_command" >/dev/null 2>&1; then
-        output="$("$pip_command" show "$package_name" 2>/dev/null || true)"
-    fi
-
-    description="$(printf "%s\n" "$output" | awk -F': ' '/^Summary:/ { print $2; exit }')"
-    website="$(printf "%s\n" "$output" | awk -F': ' '/^Home-page:/ { print $2; exit }')"
-    [[ -n "$description$website" ]] || return 1
-    gaudi_helper_join_info "$package_name" "$description" "$website"
-}
-
 gaudi_helper_apt_info() {
     local package_name="$1"
     local description=""
@@ -90,17 +82,27 @@ gaudi_helper_apt_info() {
     gaudi_helper_join_info "$package_name" "$description" "$website"
 }
 
-gaudi_helper_mas_info() {
-    local package_name="$1"
+# The name of a Mac App Store app from its id (empty when mas cannot tell).
+# `mas list` answers offline for installed apps; `mas info` asks the store.
+gaudi_helper_mas_name() {
+    local app_id="$1"
     local name=""
 
-    command -v mas >/dev/null 2>&1 || {
-        gaudi_helper_join_info "$package_name"
-        return 0
-    }
+    command -v mas >/dev/null 2>&1 || return 0
 
-    name="$(mas info "$package_name" 2>/dev/null | head -n 1)"
-    gaudi_helper_join_info "$package_name" "$name"
+    # "497799835  Xcode  (15.4)"
+    name="$(mas list 2>/dev/null | awk -v id="$app_id" '$1 == id { $1 = ""; sub(/[ \t]*\([^()]*\)[ \t]*$/, ""); print; exit }')"
+    # "Xcode 15.4 [Free]"
+    [[ -n "$name" ]] || name="$(mas info "$app_id" 2>/dev/null | head -n 1 | sed -E 's/ *\[[^]]*\] *$//; s/ +[0-9][^ ]*$//')"
+
+    # The name is written inside a double-quoted Brewfile (Ruby) string
+    gaudi_helper_one_line "$(printf "%s" "$name" | sed 's/["\\]//g; s/#{//g')"
+}
+
+gaudi_helper_mas_info() {
+    local package_name="$1"
+
+    gaudi_helper_join_info "$package_name" "$(gaudi_helper_mas_name "$package_name")"
 }
 
 gaudi_helper_get_software_info() {
@@ -116,9 +118,6 @@ gaudi_helper_get_software_info() {
             ;;
         npm)
             gaudi_helper_npm_info "$package_name"
-            ;;
-        pip)
-            gaudi_helper_pip_info "$package_name"
             ;;
         apt)
             gaudi_helper_apt_info "$package_name"
@@ -147,7 +146,7 @@ getSoftwareInfo() {
     fi
 
     case "$command_name" in
-        brew|cask|npm|pip|tap|gem|apt|mas)
+        brew|cask|npm|tap|gem|apt|mas)
             gaudi_helper_get_software_info "$command_name" "$package_name"
             ;;
         *)
