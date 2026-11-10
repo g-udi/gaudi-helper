@@ -252,7 +252,7 @@ cp -R "$ROOT_DIR/README.md" \
       "$ROOT_DIR/lib" \
       "$ROOT_DIR/test" \
       "$helper_repo/"
-git -C "$helper_repo" -c init.defaultBranch=master init >/dev/null
+git -C "$helper_repo" -c init.defaultBranch=main init >/dev/null
 git -C "$helper_repo" add . >/dev/null
 git -C "$helper_repo" \
     -c user.email="gaudi-helper-test@example.invalid" \

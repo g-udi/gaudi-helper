@@ -13,7 +13,7 @@ It writes the format [Gaudi 2.0](https://github.com/g-udi/gaudi#software-brewfil
 [Gaudi](https://github.com/g-udi/gaudi) must already be installed.
 
 ```sh
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi-helper/master/install.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/g-udi/gaudi-helper/main/install.sh)"
 ```
 
 The installer clones or updates:
@@ -34,7 +34,7 @@ Force a target shell, profile, branch, or repository when needed:
 ```sh
 GAUDI_HELPER_SHELL=zsh bash install.sh
 GAUDI_HELPER_PROFILE="$HOME/.zshrc" bash install.sh
-GAUDI_HELPER_BRANCH=master bash install.sh
+GAUDI_HELPER_BRANCH=main bash install.sh
 GAUDI_HELPER_REPO=https://github.com/g-udi/gaudi-helper.git bash install.sh
 ```
 
