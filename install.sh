@@ -43,9 +43,9 @@ update_helper() {
     local branch=""
 
     branch="$(current_helper_branch "$target")"
-    git -C "$target" fetch --depth=1 origin "$branch"
-    git -C "$target" checkout "$branch" 2>/dev/null || git -C "$target" checkout -B "$branch" "origin/$branch"
-    git -C "$target" pull --ff-only origin "$branch"
+    # The install is a shallow clone, so a new commit has no shared history to
+    # fast-forward along: move the branch to what was just fetched instead.
+    git -C "$target" fetch --depth=1 origin "$branch" && git -C "$target" checkout -q -B "$branch" FETCH_HEAD
 }
 
 if [[ ! -d "$GAUDI" ]]; then
