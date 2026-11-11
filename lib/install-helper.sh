@@ -32,6 +32,8 @@ gaudi_helper_detect_shell() {
     printf "%s" "$shell_name"
 }
 
+# The profile file of a supported shell. Fails for any other shell: the lines
+# the installer adds are Bash/Zsh syntax, and so is the helper.
 gaudi_helper_profile_for_shell() {
     local shell_name="$1"
 
@@ -47,7 +49,7 @@ gaudi_helper_profile_for_shell() {
             fi
             ;;
         *)
-            printf "%s" "${GAUDI_HELPER_PROFILE:-$HOME/.profile}"
+            return 1
             ;;
     esac
 }
@@ -58,29 +60,14 @@ gaudi_helper_install_shell_integration() {
     local profile=""
 
     shell_name="$(gaudi_helper_detect_shell)"
-    profile="$(gaudi_helper_profile_for_shell "$shell_name")"
+    if ! profile="$(gaudi_helper_profile_for_shell "$shell_name")"; then
+        printf "gaudi-helper works in Bash and Zsh, not in %s: no shell profile was changed.\n" "$shell_name" >&2
+        printf "To use it from Bash or Zsh, run the installer again with GAUDI_HELPER_SHELL=bash or GAUDI_HELPER_SHELL=zsh.\n" >&2
+        return 1
+    fi
 
     gaudi_helper_append_once "$profile" "export GAUDI_HELPER_DIR=\"$helper_dir\""
-
-    if [[ "$shell_name" == "bash" ]]; then
-        gaudi_helper_append_once "$profile" '[ -r "$GAUDI_HELPER_DIR/lib/bash-prexec.sh" ] && source "$GAUDI_HELPER_DIR/lib/bash-prexec.sh"'
-    fi
-
+    # gaudi-helper.sh loads bash-preexec itself when the shell is Bash
     gaudi_helper_append_once "$profile" '[ -r "$GAUDI_HELPER_DIR/gaudi-helper.sh" ] && source "$GAUDI_HELPER_DIR/gaudi-helper.sh"'
     printf "Installed gaudi-helper shell integration in %s\n" "$profile"
-}
-
-# Backwards-compatible wrapper used by older install flows.
-set_environment_exports() {
-    local line="$1"
-    local shell_scope="${2:-}"
-    local profile=""
-
-    if [[ "$shell_scope" == "bash" ]]; then
-        profile="$(gaudi_helper_profile_for_shell bash)"
-    else
-        profile="$(gaudi_helper_profile_for_shell "$(gaudi_helper_detect_shell)")"
-    fi
-
-    gaudi_helper_append_once "$profile" "$line"
 }

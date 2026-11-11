@@ -45,7 +45,7 @@ check() {
 
 # --- Static checks -------------------------------------------------------------
 
-shell_files=(gaudi-helper.sh install.sh lib/helper.sh lib/install-helper.sh lib/bash-prexec.sh test/test.sh test/cases.sh)
+shell_files=(gaudi-helper.sh install.sh lib/helper.sh lib/install-helper.sh lib/bash-preexec.sh lib/bash-prexec.sh test/test.sh test/cases.sh)
 sourced_by_zsh=(gaudi-helper.sh lib/helper.sh test/cases.sh)
 
 for file in "${shell_files[@]}"; do
@@ -60,8 +60,8 @@ fi
 
 if command -v shellcheck >/dev/null 2>&1; then
     for file in "${shell_files[@]}"; do
-        # bash-prexec.sh is bundled third-party code
-        [[ "$file" == "lib/bash-prexec.sh" ]] && continue
+        # bash-preexec.sh is bundled third-party code
+        [[ "$file" == "lib/bash-preexec.sh" ]] && continue
         check "shellcheck: $file" shellcheck -x -S warning "$ROOT_DIR/$file"
     done
 else
@@ -79,15 +79,21 @@ mkdir -p "$fakebin"
 cat > "$fakebin/brew" <<'BREW'
 #!/bin/bash
 printf 'brew %s\n' "$*" >> "$GAUDI_HELPER_TEST_CALLS"
+# `brew info` as Homebrew prints it: a header, the description, the website.
+# old-style-cask answers the way older Homebrew described casks.
 case "$1:$2" in
-  desc:--eval-all)
-    printf '%s: Description of %s\n' "$3" "$3"
-    ;;
   info:--cask)
-    printf '==> Description\nCask %s\nhttps://example.invalid/%s\n' "$3" "$3"
+    if [[ "$3" == "old-style-cask" ]]; then
+      printf '%s: 1.0\nhttps://example.invalid/%s\nNot installed\n==> Name\nOld\n==> Description\nCask %s\n' "$3" "$3" "$3"
+    else
+      printf '==> %s (Some App): 1.0 (auto_updates)\nCask %s\nhttps://example.invalid/%s\nNot installed\n' "$3" "$3" "$3"
+    fi
     ;;
   info:*)
-    printf '%s: stable\nhttps://example.invalid/%s\n' "$2" "$2"
+    printf '==> %s: stable 1.0 (bottled)\nDescription of %s\nhttps://example.invalid/%s\nNot installed\n' "$2" "$2" "$2"
+    ;;
+  install:*|tap:*)
+    # Only the end-to-end shell sessions run these: they "succeed"
     ;;
 esac
 BREW
@@ -95,10 +101,9 @@ BREW
 cat > "$fakebin/npm" <<'NPM'
 #!/bin/bash
 printf 'npm %s\n' "$*" >> "$GAUDI_HELPER_TEST_CALLS"
-if [[ "$1" == "view" && "$3" == "description" ]]; then
-  printf 'About %s\n' "$2"
-elif [[ "$1" == "view" && "$3" == "homepage" ]]; then
-  printf 'https://example.invalid/%s\n' "$2"
+# `npm view <name> description homepage`: one "field = value" line each
+if [[ "$1" == "view" && "$3" == "description" && "$4" == "homepage" ]]; then
+  printf "description = 'About %s'\nhomepage = 'https://example.invalid/%s'\n" "$2" "$2"
 fi
 NPM
 
@@ -240,7 +245,58 @@ else
     printf "skipped: zsh is not installed\n"
 fi
 
-[[ -x "$gaudi_cli" ]] || printf "skipped: gaudi check (no Gaudi checkout at %s)\n" "${gaudi_cli%/bin/gaudi}"
+# The gaudi check step is what ties the helper's file formats to Gaudi's. By
+# hand it is skipped without a Gaudi checkout; in CI that is a failure.
+if [[ ! -x "$gaudi_cli" ]]; then
+    if [[ -n "${CI:-}" ]]; then
+        fail "gaudi check ran (CI needs a Gaudi checkout at ${gaudi_cli%/bin/gaudi})"
+    else
+        printf "skipped: gaudi check (no Gaudi checkout at %s)\n" "${gaudi_cli%/bin/gaudi}"
+    fi
+fi
+
+# --- Real interactive shells -----------------------------------------------------------
+# Everything above calls the hook functions by hand. Here a real interactive
+# shell, on a pseudo-terminal, loads the helper and runs commands, so the
+# hooks are the ones the shell itself fires (bash-preexec's DEBUG trap and
+# PROMPT_COMMAND, zsh's preexec and precmd).
+
+#   session <label> <shell command>...
+session() {
+    local label="$1"
+    local home="$tmp_dir/session-$label"
+    local brewfile="$tmp_dir/session-$label/.gaudi/templates/lists/core.Brewfile"
+    shift
+
+    mkdir -p "$home/.gaudi/templates"
+    printf '%s\n' \
+        "source \"$ROOT_DIR/gaudi-helper.sh\"" \
+        'ls >/dev/null' \
+        'brew install session-formula' \
+        'false' \
+        'HOMEBREW_NO_AUTO_UPDATE=1 brew install session-second' \
+        'exit' > "$home/commands"
+
+    check "[session $label] an interactive shell with the helper loaded runs to its end" \
+        env -i PATH="$fakebin:/usr/bin:/bin" HOME="$home" GAUDI="$home/.gaudi" GAUDI_HELPER_DIR="$ROOT_DIR" TERM=dumb \
+        GAUDI_HELPER_TEST_CALLS="$calls" "$python" "$ROOT_DIR/test/terminal.py" "$home/commands" "$@"
+    check "[session $label] an install typed at the prompt is recorded" grep -Fxq 'brew "session-formula"' "$brewfile"
+    check "[session $label] an install with a variable in front is recorded" grep -Fxq 'brew "session-second"' "$brewfile"
+    check "[session $label] each install is recorded once" test "$(grep -c '^brew ' "$brewfile" 2>/dev/null)" = "2"
+}
+
+python="$(command -v python3 2>/dev/null || true)"
+if [[ -n "$python" ]]; then
+    session bash-3.2 /bin/bash --noprofile --norc -i
+    if [[ -n "$newer_bash" && "$newer_bash" != "/bin/bash" ]]; then
+        session bash "$newer_bash" --noprofile --norc -i
+    fi
+    if command -v zsh >/dev/null 2>&1; then
+        session zsh "$(command -v zsh)" -f -i
+    fi
+else
+    printf "skipped: interactive shell sessions (python3 is not installed)\n"
+fi
 
 # --- Installer ---------------------------------------------------------------------
 
@@ -289,7 +345,12 @@ install_for() {
 bash_profile=".bashrc"
 [[ "$(uname -s)" == "Darwin" ]] && bash_profile=".bash_profile"
 install_for bash "$bash_profile"
-check "install (bash): $bash_profile loads bash-preexec" grep -Fq 'bash-prexec.sh' "$tmp_dir/install-bash/$bash_profile"
+# The helper loads bash-preexec itself: the profile needs no line for it
+no_preexec_line() {
+    ! grep -Eq 'prexec|preexec' "$tmp_dir/install-bash/$bash_profile"
+}
+check "install (bash): $bash_profile has no separate bash-preexec line" no_preexec_line
+check "install (bash): the profile has two lines, the directory and the helper" test "$(grep -c . "$tmp_dir/install-bash/$bash_profile")" = "2"
 install_for zsh ".zshrc"
 
 # The real installer makes a shallow clone (a file:// URL does too, unlike the
@@ -317,6 +378,37 @@ check "update: the new upstream commit is checked out" test -f "$update_home/.ga
 check "update: the install is at the upstream commit" test "$(git -C "$update_home/.gaudi/gaudi-helper" rev-parse HEAD 2>/dev/null)" = "$(git -C "$helper_repo" rev-parse HEAD)"
 check "update: the install stays on its branch" test "$(git -C "$update_home/.gaudi/gaudi-helper" branch --show-current 2>/dev/null)" = "main"
 check "update: updating again with nothing new succeeds" install_update
+
+# A profile written by an earlier installer sources bash-preexec under its old,
+# misspelt file name before the helper: that must keep working.
+check "install (bash): a profile from an earlier installer still loads" /bin/bash --noprofile --norc -c '
+    export GAUDI_HELPER_DIR="$1" GAUDI_HELPER_NO_HOOKS=false
+    [ -r "$GAUDI_HELPER_DIR/lib/bash-prexec.sh" ] && source "$GAUDI_HELPER_DIR/lib/bash-prexec.sh"
+    [ -r "$GAUDI_HELPER_DIR/gaudi-helper.sh" ] && source "$GAUDI_HELPER_DIR/gaudi-helper.sh"
+    [[ -n "${__bp_imported:-}" ]] && [[ " ${preexec_functions[*]} " == *" gaudi_helper_preexec "* ]] && [[ " ${precmd_functions[*]} " == *" gaudi_helper_precmd "* ]]
+' _ "$tmp_dir/install-bash/.gaudi/gaudi-helper"
+
+# Any other shell: nothing is written, and the installer says why
+fish_home="$tmp_dir/install-fish"
+mkdir -p "$fish_home/.gaudi"
+install_fish() {
+    env HOME="$fish_home" GAUDI="$fish_home/.gaudi" GAUDI_HELPER_REPO="$helper_repo" SHELL="/usr/local/bin/fish" /bin/bash "$ROOT_DIR/install.sh"
+}
+fish_is_refused() {
+    ! install_fish >/dev/null 2>&1
+}
+fish_is_told_why() {
+    local message=""
+
+    message="$(install_fish 2>&1 || true)"
+    [[ "$message" == *"gaudi-helper works in Bash and Zsh, not in fish"* ]]
+}
+fish_has_no_profile() {
+    [[ -z "$(find "$fish_home" -maxdepth 3 \( -name ".profile" -o -name "config.fish" -o -name ".bashrc" -o -name ".bash_profile" -o -name ".zshrc" \) -print)" ]]
+}
+check "install (fish): an unsupported shell is refused" fish_is_refused
+check "install (fish): the message names the supported shells" fish_is_told_why
+check "install (fish): no profile is written" fish_has_no_profile
 
 check "install: refuses to run without Gaudi" /bin/bash -c '! HOME="$1" GAUDI="$1/.gaudi" /bin/bash "$2" >/dev/null 2>&1' _ "$tmp_dir/no-gaudi" "$ROOT_DIR/install.sh"
 

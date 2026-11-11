@@ -29,6 +29,8 @@ Supported shells:
 - Bash 3.2 and later (including the Bash that ships with macOS), via the bundled [bash-preexec](https://github.com/rcaloras/bash-preexec)
 - Zsh, via its native [`add-zsh-hook`](https://zsh.sourceforge.io/Doc/Release/User-Contributions.html#Manipulating-Hook-Functions)
 
+With any other shell (fish, for example) the installer stops with a message and leaves every profile alone. To use the helper from Bash or Zsh on such a machine, run the installer with `GAUDI_HELPER_SHELL=bash` or `GAUDI_HELPER_SHELL=zsh`.
+
 Force a target shell, profile, branch, or repository when needed:
 
 ```sh
@@ -61,7 +63,7 @@ When the templates have no suitable file yet, it creates one under:
 ${GAUDI_HELPER_LIST_DIR:-<templates directory>/lists}
 ```
 
-When possible, the helper also looks up the package description and homepage through the package manager. In a Brewfile they become the comment line above the entry, which Gaudi shows when it asks about that package; in a list they follow Gaudi's `package::description website` format.
+When possible, the helper also looks up the package description and homepage through the package manager (one call per package: `brew info`, `npm view`, `apt-cache show`). In a Brewfile they become the comment line above the entry, which Gaudi shows when it asks about that package; in a list they follow Gaudi's `package::description website` format.
 
 ```ruby
 # Lightweight and flexible command-line JSON processor https://jqlang.github.io/jq/
@@ -97,12 +99,19 @@ pacman -S ripgrep
 zypper install htop
 ```
 
-The parser also handles common wrappers such as:
+The parser also handles what commonly stands around the command: wrappers and variables in front of it, options before the subcommand, and a comment behind it:
 
 ```sh
 command brew install jq
 sudo -E brew install --cask firefox
 env HOMEBREW_NO_AUTO_UPDATE=1 brew install jq
+HOMEBREW_NO_AUTO_UPDATE=1 brew install jq
+time brew install jq
+noglob brew install jq
+sudo apt-get -y install jq
+sudo dnf -y install htop
+npm -g install prettier
+brew install jq # the JSON tool
 ```
 
 Versions are left out, so `npm install -g eslint@9`, `cargo install ripgrep@14.1.0` and `go install example.com/tool@latest` record `eslint`, `ripgrep` and `example.com/tool`. Arguments that are not package names (local paths, URLs, archives, shell variables) are skipped, and so are dry runs and installs from somewhere other than the package index (`cargo install --git`, `cargo install --path`, `uv tool install --from`, `pipx install --editable`).
@@ -167,6 +176,8 @@ Duplicate entries are skipped. An entry counts as present when any Brewfile (or 
 
 If the templates directory does not exist, the helper logs a warning and does not block your shell command.
 
+The helper costs an ordinary command nothing: before each command the shell hook only checks, with one built-in comparison, whether the line names a package manager at all. The parsing happens after such a command succeeded.
+
 Run `gaudi check` to validate the templates at any time.
 
 ### Coming from the old list files
@@ -184,7 +195,7 @@ Useful environment variables:
 | `GAUDI_HELPER_DIR` | `$GAUDI/gaudi-helper` | Where the helper is installed |
 | `GAUDI_HELPER_LIST_DIR` | `<templates directory>/lists` | Where a new Brewfile or list is created; keep it inside the templates directory so Gaudi finds the files |
 | `GAUDI_HELPER_NO_HOOKS` | `false` | `true` loads the helper functions without registering shell hooks |
-| `GAUDI_HELPER_SHELL` | detected from `$SHELL` | Installer: `bash` or `zsh` |
+| `GAUDI_HELPER_SHELL` | detected from `$SHELL` | Installer: `bash` or `zsh`. With any other shell the installer stops and changes no profile |
 | `GAUDI_HELPER_PROFILE` | the shell's profile | Installer: the profile file to add the lines to |
 | `GAUDI_HELPER_BRANCH` | the repository's default branch | Installer: branch to update to |
 | `GAUDI_HELPER_REPO` | `https://github.com/g-udi/gaudi-helper.git` | Installer: repository to clone |
@@ -199,10 +210,12 @@ Run the tests:
 ./test/test.sh
 ```
 
-The tests use fake package-manager binaries and temporary directories, so they are deterministic, do not install software, and touch neither your home directory nor your templates. They check shell syntax, [ShellCheck](https://www.shellcheck.net/) when available, command detection, every command-to-file mapping, duplicate prevention, metadata capture, the shell hooks and installer profile updates. The cases run once per available shell: `/bin/bash` (Bash 3.2 on macOS), a newer Bash when one is on `PATH`, and Zsh.
+The tests use fake package-manager binaries and temporary directories, so they are deterministic, do not install software, and touch neither your home directory nor your templates. They check shell syntax, [ShellCheck](https://www.shellcheck.net/) when available, command detection, every command-to-file mapping, duplicate prevention, metadata capture, the shell hooks and installer profile updates. The cases run once per available shell: `/bin/bash` (Bash 3.2 on macOS), a newer Bash when one is on `PATH`, and Zsh. With `python3` available, each of those shells is also started for real, interactively on a pseudo-terminal, with the helper loaded, and commands are typed into it: that is where bash-preexec's hooks and Zsh's own are exercised end to end.
 
 When a Gaudi checkout is available, the files the helper wrote are also validated with `gaudi check`. The tests look for it next to this repository (`../gaudi`); point them elsewhere with:
 
 ```sh
 GAUDI_HELPER_TEST_GAUDI=/path/to/gaudi ./test/test.sh
 ```
+
+[GitHub Actions](https://github.com/g-udi/gaudi-helper/actions/workflows/tests.yml) runs the suite on macOS and Ubuntu for every pull request and every push to `main`, with [Gaudi](https://github.com/g-udi/gaudi) checked out beside the helper. There the `gaudi check` step is not optional: without the Gaudi checkout the run fails.
