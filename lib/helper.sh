@@ -37,47 +37,61 @@ gaudi_helper_join_info() {
     printf "%s::%s" "$package_name" "$details"
 }
 
+# Each lookup below asks its tool once and takes the description and the
+# website from that one answer: they run at the prompt, right after an install.
+
+# `brew info` prints a header line, the description, then the website. Older
+# casks have the description under a "==> Description" heading instead.
+#   gaudi_helper_brew_info <name> [--cask]
 gaudi_helper_brew_info() {
     local package_name="$1"
+    local info=""
     local description=""
     local website=""
 
-    description="$(brew desc --eval-all "$package_name" 2>/dev/null | sed 's/^[^:]*:[[:space:]]*//' | head -n 1)"
-    website="$(brew info "$package_name" 2>/dev/null | gaudi_helper_strip_ansi | awk '/^https?:\/\// { print; exit }')"
+    if [[ "${2:-}" == "--cask" ]]; then
+        info="$(brew info --cask "$package_name" 2>/dev/null | gaudi_helper_strip_ansi)"
+    else
+        info="$(brew info "$package_name" 2>/dev/null | gaudi_helper_strip_ansi)"
+    fi
+    description="$(printf "%s\n" "$info" | awk '
+        /^==> Description/ { if ((getline line) > 0) heading = line; next }
+        NR == 2 && !/^https?:\/\// && !/^==>/ { second = $0 }
+        END { print (heading != "" ? heading : second) }
+    ')"
+    website="$(printf "%s\n" "$info" | awk '/^https?:\/\// { print; exit }')"
     [[ -n "$description$website" ]] || return 1
     gaudi_helper_join_info "$package_name" "$description" "$website"
 }
 
 gaudi_helper_cask_info() {
-    local package_name="$1"
-    local description=""
-    local website=""
-
-    description="$(brew info --cask "$package_name" 2>/dev/null | awk '/^==> Description/{ getline; print; exit }')"
-    website="$(brew info --cask "$package_name" 2>/dev/null | gaudi_helper_strip_ansi | awk '/^https?:\/\// { print; exit }')"
-    [[ -n "$description$website" ]] || return 1
-    gaudi_helper_join_info "$package_name" "$description" "$website"
+    gaudi_helper_brew_info "$1" --cask
 }
 
+# `npm view <name> description homepage` prints one "field = 'value'" line each
 gaudi_helper_npm_info() {
     local package_name="$1"
+    local info=""
     local description=""
     local website=""
 
-    description="$(npm view "$package_name" description 2>/dev/null | head -n 1)"
-    website="$(npm view "$package_name" homepage 2>/dev/null | head -n 1)"
+    info="$(npm view "$package_name" description homepage 2>/dev/null | gaudi_helper_strip_ansi)"
+    description="$(printf "%s\n" "$info" | sed -n "s/^description = //p" | head -n 1 | sed "s/^['\"]//; s/['\"]\$//")"
+    website="$(printf "%s\n" "$info" | sed -n "s/^homepage = //p" | head -n 1 | sed "s/^['\"]//; s/['\"]\$//")"
     [[ -n "$description$website" ]] || return 1
     gaudi_helper_join_info "$package_name" "$description" "$website"
 }
 
 gaudi_helper_apt_info() {
     local package_name="$1"
+    local info=""
     local description=""
     local website=""
 
     command -v apt-cache >/dev/null 2>&1 || return 1
-    description="$(apt-cache show "$package_name" 2>/dev/null | awk -F': ' '/^Description:/ { print $2; exit }')"
-    website="$(apt-cache show "$package_name" 2>/dev/null | awk -F': ' '/^Homepage:/ { print $2; exit }')"
+    info="$(apt-cache show "$package_name" 2>/dev/null)"
+    description="$(printf "%s\n" "$info" | awk -F': ' '/^Description(-[a-z]+)?:/ { print $2; exit }')"
+    website="$(printf "%s\n" "$info" | awk -F': ' '/^Homepage:/ { print $2; exit }')"
     [[ -n "$description$website" ]] || return 1
     gaudi_helper_join_info "$package_name" "$description" "$website"
 }
@@ -99,12 +113,6 @@ gaudi_helper_mas_name() {
     gaudi_helper_one_line "$(printf "%s" "$name" | sed 's/["\\]//g; s/#{//g')"
 }
 
-gaudi_helper_mas_info() {
-    local package_name="$1"
-
-    gaudi_helper_join_info "$package_name" "$(gaudi_helper_mas_name "$package_name")"
-}
-
 gaudi_helper_get_software_info() {
     local target="$1"
     local package_name="$2"
@@ -122,9 +130,6 @@ gaudi_helper_get_software_info() {
         apt)
             gaudi_helper_apt_info "$package_name"
             ;;
-        mas)
-            gaudi_helper_mas_info "$package_name"
-            ;;
         tap|gem)
             gaudi_helper_join_info "$package_name"
             ;;
@@ -133,26 +138,3 @@ gaudi_helper_get_software_info() {
             ;;
     esac
 }
-
-# Backwards-compatible API used by older tests and callers.
-getSoftwareInfo() {
-    local command_name="$1"
-    local package_name="$2"
-    local info_command="${3:-}"
-
-    if [[ "$info_command" == "*" ]]; then
-        gaudi_helper_join_info "$package_name"
-        return 0
-    fi
-
-    case "$command_name" in
-        brew|cask|npm|tap|gem|apt|mas)
-            gaudi_helper_get_software_info "$command_name" "$package_name"
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-export -f getSoftwareInfo >/dev/null 2>&1 || true

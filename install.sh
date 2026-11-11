@@ -70,6 +70,6 @@ fi
 
 # shellcheck source=/dev/null
 source "$GAUDI_HELPER_DIR/lib/install-helper.sh"
-gaudi_helper_install_shell_integration "$GAUDI_HELPER_DIR"
+gaudi_helper_install_shell_integration "$GAUDI_HELPER_DIR" || exit 1
 
 log "gaudi-helper installed. Restart your shell or source your shell profile."

@@ -1,0 +1,51 @@
+name: tests
+
+# Runs on every pull request, in the merge queue, and on every push to main.
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request replaces the run in progress
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Actions are pinned to a commit, with the release it belongs to in a comment:
+# a tag such as v4 can be moved to different code, a commit cannot.
+
+jobs:
+  suite:
+    name: ./test/test.sh (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: gaudi-helper
+      # Gaudi sits next to the helper, where the tests look for it: the files
+      # the helper writes are validated with `gaudi check`, which keeps the
+      # two projects agreeing on Brewfile and list formats. In CI the suite
+      # fails when that checkout is missing.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: g-udi/gaudi
+          path: gaudi
+      - name: Install ShellCheck (macOS)
+        if: runner.os == 'macOS'
+        run: brew install shellcheck
+      - name: Install ShellCheck and Zsh (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y shellcheck zsh
+      - name: Run the suite
+        working-directory: gaudi-helper
+        run: ./test/test.sh

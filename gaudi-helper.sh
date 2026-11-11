@@ -43,17 +43,39 @@ gaudi_helper_reject_complex_command() {
     esac
 }
 
+# Print the command without what can stand in front of it (variable
+# assignments, command, env, sudo, time, noglob, nocorrect) and without a
+# trailing "# comment".
 gaudi_helper_normalize_command() {
     local command_text="$1"
 
     command_text="$(gaudi_helper_trim "$command_text")"
+    # A comment starts at a "#" that begins a word
+    case "$command_text" in
+        "#"*) command_text="" ;;
+        *[[:space:]]"#"*) command_text="$(gaudi_helper_trim "${command_text%%[[:space:]]"#"*}")" ;;
+    esac
 
     printf "%s\n" "$command_text" | command awk '
         {
             i = 1
             while (i <= NF) {
-                if ($i == "command") {
+                if ($i == "command" || $i == "noglob" || $i == "nocorrect") {
                     i++
+                    continue
+                }
+
+                # NAME=value in front of the command
+                if ($i ~ /^[A-Za-z_][A-Za-z0-9_]*=/) {
+                    i++
+                    continue
+                }
+
+                if ($i == "time") {
+                    i++
+                    while (i <= NF && $i ~ /^-/) {
+                        i++
+                    }
                     continue
                 }
 
@@ -123,7 +145,7 @@ gaudi_helper_value_options() {
             printf "%s" "-b|--dbpath|-r|--root|--arch|--cachedir|--color|--config|--gpgdir|--hookdir|--logfile|--sysroot|--assume-installed|--ignore|--ignoregroup|--overwrite|--print-format"
             ;;
         zypper)
-            printf "%s" "-r|--repo|--from|-t|--type|-C|--capability|--download|--solver-focus"
+            printf "%s" "-R|--root|-r|--repo|--from|-t|--type|-C|--capability|--download|--solver-focus"
             ;;
         *)
             printf "%s" "--"
@@ -205,6 +227,9 @@ gaudi_helper_detect_install() {
     local rest=""
     local target=""
     local packages=""
+    local value_options=""
+    local option=""
+    local leading=""
 
     command_text="$(gaudi_helper_normalize_command "$command_text")"
     gaudi_helper_reject_complex_command "$command_text" && return 1
@@ -213,19 +238,41 @@ gaudi_helper_detect_install() {
     rest="${command_text#"$manager"}"
     rest="$(gaudi_helper_trim "$rest")"
 
-    # zypper takes its global options before the subcommand
-    if [[ "$manager" == "zypper" ]]; then
-        while [[ "$rest" == -* ]]; do
-            case "$rest" in
-                *" "*) rest="$(gaudi_helper_trim "${rest#* }")" ;;
-                *) rest="" ;;
+    # Options may come before the subcommand (apt-get -y install, dnf -y
+    # install, zypper --non-interactive install, npm -g install). They are set
+    # aside, with the value of those that take one, and put back after the
+    # subcommand so the checks below still see them. Not for pacman and code,
+    # whose "subcommand" is itself an option.
+    case "$manager" in
+        pacman|code) ;;
+        *)
+            case "$manager" in
+                apt-get) value_options="$(gaudi_helper_value_options apt)" ;;
+                dnf5) value_options="$(gaudi_helper_value_options dnf)" ;;
+                *) value_options="$(gaudi_helper_value_options "$manager")" ;;
             esac
-        done
-    fi
+            value_options="^(${value_options})\$"
+            while [[ "$rest" == -* ]]; do
+                option="${rest%% *}"
+                leading="$leading $option"
+                case "$rest" in
+                    *" "*) rest="$(gaudi_helper_trim "${rest#* }")" ;;
+                    *) rest="" ;;
+                esac
+                if [[ "$option" =~ $value_options && -n "$rest" ]]; then
+                    leading="$leading ${rest%% *}"
+                    case "$rest" in
+                        *" "*) rest="$(gaudi_helper_trim "${rest#* }")" ;;
+                        *) rest="" ;;
+                    esac
+                fi
+            done
+            ;;
+    esac
 
     action="${rest%% *}"
     rest="${rest#"$action"}"
-    rest="$(gaudi_helper_trim "$rest")"
+    rest="$(gaudi_helper_trim "$rest$leading")"
 
     # Asking for help or a dry run does not install anything
     gaudi_helper_args_contain_any "$rest" -h --help --dry-run && return 1
@@ -982,7 +1029,7 @@ gaudi_helper_record() {
         mas)
             app_name="$(gaudi_helper_mas_name "$package_name" 2>/dev/null)"
             app_name="${app_name:-$package_name}"
-            # Looked up by id, so the description lookup is skipped ("none")
+            # The name was looked up by id above; there is no description to look up ("none")
             gaudi_helper_add_to_brewfile mas "$app_name" "mas \"${app_name}\", id: ${package_name}" "$package_name" none
             ;;
         cask|npm|uv|cargo|go|vscode)
@@ -1026,8 +1073,19 @@ gaudi_helper_process_command() {
 
 # --- Shell hooks -------------------------------------------------------------------
 
+# Remember the command only when it names a package manager somewhere. This
+# runs before every interactive command, so it is one `case` and nothing is
+# started for an ordinary command (ls, cd, git ...); whether it really is an
+# install is worked out after it succeeded.
 gaudi_helper_preexec() {
-    GAUDI_HELPER_PENDING_COMMAND="$1"
+    case "$1" in
+        *brew*|*mas*|*npm*|*uv*|*pipx*|*cargo*|*go*|*code*|*gem*|*apt*|*dnf*|*pacman*|*zypper*)
+            GAUDI_HELPER_PENDING_COMMAND="$1"
+            ;;
+        *)
+            unset GAUDI_HELPER_PENDING_COMMAND
+            ;;
+    esac
 }
 
 gaudi_helper_precmd() {
@@ -1054,9 +1112,9 @@ gaudi_helper_array_contains() {
 }
 
 gaudi_helper_register_bash_hooks() {
-    if [[ -z "${__bp_imported:-}" && -r "$GAUDI_HELPER_DIR/lib/bash-prexec.sh" ]]; then
+    if [[ -z "${__bp_imported:-}" && -r "$GAUDI_HELPER_DIR/lib/bash-preexec.sh" ]]; then
         # shellcheck source=/dev/null
-        source "$GAUDI_HELPER_DIR/lib/bash-prexec.sh"
+        source "$GAUDI_HELPER_DIR/lib/bash-preexec.sh"
     fi
 
     gaudi_helper_array_contains gaudi_helper_preexec "${preexec_functions[@]:-}" || preexec_functions+=(gaudi_helper_preexec)

@@ -150,6 +150,34 @@ detects 'sudo pacman -Syu ripgrep fd' 'pacman|ripgrep fd'
 detects 'sudo zypper install htop' 'zypper|htop'
 detects 'sudo zypper --non-interactive in htop' 'zypper|htop'
 
+# Options in front of the subcommand, for every package manager
+detects 'apt-get -y install jq' 'apt|jq'
+detects 'sudo apt-get -qq install jq' 'apt|jq'
+detects 'sudo apt-get -y -o Dpkg::Options::=--force-confold install jq' 'apt|jq'
+detects 'sudo apt-get -o Dpkg::Use-Pty=0 install jq' 'apt|jq'
+detects 'dnf -y install htop' 'dnf|htop'
+detects 'sudo dnf5 -y --setopt install_weak_deps=False install htop' 'dnf|htop'
+detects 'sudo zypper -n --root /mnt install htop' 'zypper|htop'
+detects 'npm -g install left-pad' 'npm|left-pad'
+detects 'npm --global i typescript' 'npm|typescript'
+detects 'brew -v install jq' 'brew|jq'
+detects 'gem --quiet install bundler' 'gem|bundler'
+detects 'cargo --locked install ripgrep' 'cargo|ripgrep'
+
+# What can stand in front of the command, and a comment behind it
+detects 'HOMEBREW_NO_AUTO_UPDATE=1 brew install jq' 'brew|jq'
+detects 'A=1 B=two brew install jq' 'brew|jq'
+detects 'DEBIAN_FRONTEND=noninteractive sudo apt-get install -y jq' 'apt|jq'
+detects 'sudo DEBIAN_FRONTEND=noninteractive apt-get install -y jq' 'apt|jq'
+detects 'time brew install jq' 'brew|jq'
+detects 'time -p brew install jq' 'brew|jq'
+detects 'noglob brew install jq' 'brew|jq'
+detects 'nocorrect sudo zypper install htop' 'zypper|htop'
+detects 'brew install jq # the JSON tool' 'brew|jq'
+detects 'brew install jq	# after a tab' 'brew|jq'
+detects 'brew install jq # with; a | complex > comment' 'brew|jq'
+detects 'sudo apt-get install -y jq #note' 'apt|jq'
+
 # Gaudi 2.0 has no pip lists: pip installs are never recorded
 ignores 'pip install rich'
 ignores 'pip3 install --user rich'
@@ -181,6 +209,15 @@ ignores 'brew install jq > /dev/null'
 ignores 'brew install jq &'
 ignores 'brew install $(cat packages)'
 ignores 'brew install `cat packages`'
+ignores '# brew install jq'
+ignores 'apt-get -s install jq'
+ignores 'sudo apt-get --simulate -y install jq'
+ignores 'npm -h install left-pad'
+ignores 'brew -v'
+ignores 'apt-get -y'
+ignores 'sudo dnf -y --downloadonly install htop'
+ignores 'FOO=bar'
+ignores 'time'
 
 # --- Which names are recorded -------------------------------------------------------
 
@@ -553,14 +590,45 @@ gaudi_helper_precmd >> "$work/output.log" 2>&1
 count_is "hooks: a command is recorded once, not at every prompt" "$hooked/lists/core.Brewfile" 'hooked-formula"' 1
 
 gaudi_helper_preexec 'ls -la'
+is "hooks: an ordinary command is not even kept for later" "" "${GAUDI_HELPER_PENDING_COMMAND:-}"
 (exit 0)
 gaudi_helper_precmd >> "$work/output.log" 2>&1
 is "hooks: other commands change nothing" "core.Brewfile" "$(command ls "$hooked/lists")"
 
+gaudi_helper_preexec 'brew install forgotten-formula'
+gaudi_helper_preexec 'cd /tmp'
+is "hooks: an ordinary command replaces a pending one" "" "${GAUDI_HELPER_PENDING_COMMAND:-}"
+
+for kept in 'brew install jq' 'sudo apt-get install -y jq' 'FOO=1 npm i -g x' 'mas install 1' 'uv tool install ruff' 'pipx install black' \
+    'cargo install x' 'go install example.invalid/x@latest' 'code --install-extension a.b' 'gem install x' 'dnf install x' \
+    'sudo pacman -S x' 'zypper in x'; do
+    gaudi_helper_preexec "$kept"
+    is "hooks: a command that names a package manager is kept: $kept" "$kept" "${GAUDI_HELPER_PENDING_COMMAND:-}"
+done
+unset GAUDI_HELPER_PENDING_COMMAND
+
+# One lookup per package: these run at the prompt, right after an install
+# (the log of calls is shared by every shell the cases run in, hence the suffix)
+once="once-$shell_name"
+run "brew install $once-formula"
+run "brew install --cask $once-cask"
+run "npm install -g $once-npm"
+ok "lookups: a formula's description and website are recorded" has_line "$hooked/lists/core.Brewfile" "# Description of $once-formula https://example.invalid/$once-formula"
+ok "lookups: a cask's description and website are recorded" has_line "$hooked/lists/apps.Brewfile" "# Cask $once-cask https://example.invalid/$once-cask"
+ok "lookups: an npm package's description and website are recorded" has_line "$hooked/lists/npm.Brewfile" "# About $once-npm https://example.invalid/$once-npm"
+count_is "lookups: Homebrew is asked once about a formula" "$GAUDI_HELPER_TEST_CALLS" "$once-formula" 1
+count_is "lookups: Homebrew is asked once about a cask" "$GAUDI_HELPER_TEST_CALLS" "$once-cask" 1
+count_is "lookups: npm is asked once" "$GAUDI_HELPER_TEST_CALLS" "$once-npm" 1
+run "sudo apt-get install -y $once-apt"
+ok "lookups: an apt package's description and website are recorded" has_line "$hooked/lists/default.apt.list.sh" "    \"$once-apt::Description of $once-apt https://example.invalid/$once-apt\""
+count_is "lookups: apt-cache is asked once" "$GAUDI_HELPER_TEST_CALLS" "$once-apt" 1
+run 'brew install --cask old-style-cask'
+ok "lookups: a cask described the way older Homebrew did is read too" has_line "$hooked/lists/apps.Brewfile" '# Cask old-style-cask https://example.invalid/old-style-cask'
+
 # The fake package managers log every call: only lookups may appear
 not_ok "the helper never runs an install, tap or uninstall itself" \
     command grep -Eq '^(brew|npm|mas|apt-cache) (install|uninstall|tap|i|add|get|purchase|reinstall|upgrade)( |$)' "$GAUDI_HELPER_TEST_CALLS"
-ok "the helper only asks package managers for descriptions" command grep -Fxq 'brew desc --eval-all jq' "$GAUDI_HELPER_TEST_CALLS"
+ok "the helper only asks package managers for descriptions" command grep -Fxq 'brew info jq' "$GAUDI_HELPER_TEST_CALLS"
 
 # --- No templates ----------------------------------------------------------------------
 
