@@ -292,6 +292,32 @@ install_for bash "$bash_profile"
 check "install (bash): $bash_profile loads bash-preexec" grep -Fq 'bash-prexec.sh' "$tmp_dir/install-bash/$bash_profile"
 install_for zsh ".zshrc"
 
+# The real installer makes a shallow clone (a file:// URL does too, unlike the
+# plain path above), and the remote moves on between two runs.
+update_home="$tmp_dir/install-update"
+mkdir -p "$update_home/.gaudi"
+#   install_update: run the installer against the remote as it is now
+install_update() {
+    env HOME="$update_home" \
+        GAUDI="$update_home/.gaudi" \
+        GAUDI_HELPER_REPO="file://$helper_repo" \
+        GAUDI_HELPER_SHELL="bash" \
+        /bin/bash "$ROOT_DIR/install.sh"
+}
+check "update: the first install succeeds" install_update
+check "update: the install is a shallow clone" test -f "$update_home/.gaudi/gaudi-helper/.git/shallow"
+printf "added upstream\n" > "$helper_repo/NEW-UPSTREAM-FILE"
+git -C "$helper_repo" add . >/dev/null
+git -C "$helper_repo" \
+    -c user.email="gaudi-helper-test@example.invalid" \
+    -c user.name="Gaudi Helper Test" \
+    commit -m "upstream moved on" >/dev/null
+check "update: installing again after a new upstream commit succeeds" install_update
+check "update: the new upstream commit is checked out" test -f "$update_home/.gaudi/gaudi-helper/NEW-UPSTREAM-FILE"
+check "update: the install is at the upstream commit" test "$(git -C "$update_home/.gaudi/gaudi-helper" rev-parse HEAD 2>/dev/null)" = "$(git -C "$helper_repo" rev-parse HEAD)"
+check "update: the install stays on its branch" test "$(git -C "$update_home/.gaudi/gaudi-helper" branch --show-current 2>/dev/null)" = "main"
+check "update: updating again with nothing new succeeds" install_update
+
 check "install: refuses to run without Gaudi" /bin/bash -c '! HOME="$1" GAUDI="$1/.gaudi" /bin/bash "$2" >/dev/null 2>&1' _ "$tmp_dir/no-gaudi" "$ROOT_DIR/install.sh"
 
 # --- Summary -----------------------------------------------------------------------
