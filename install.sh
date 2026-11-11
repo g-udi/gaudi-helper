@@ -35,7 +35,7 @@ current_helper_branch() {
         branch="$(git -C "$target" branch --show-current 2>/dev/null || true)"
     fi
 
-    printf "%s" "${branch:-master}"
+    printf "%s" "${branch:-main}"
 }
 
 update_helper() {
