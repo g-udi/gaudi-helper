@@ -225,7 +225,7 @@ run_cases() {
     check "[$label] every file the helper wrote has a valid format" valid_templates "$work/work"
 
     if [[ -x "$gaudi_cli" ]]; then
-        for directory in created existing headed hooked; do
+        for directory in created existing declared headed hooked; do
             check "[$label] gaudi check accepts the $directory templates" gaudi_check "$work/work/$directory"
         done
     fi
@@ -315,6 +315,12 @@ git -C "$helper_repo" \
     -c user.name="Gaudi Helper Test" \
     commit -m "test fixture" >/dev/null
 
+# The installer reads GAUDI_HELPER_DIR, GAUDI_HELPER_BRANCH and
+# GAUDI_HELPER_PROFILE. A shell with the helper loaded exports the first one
+# (the installer writes that line into the profile), so they are dropped
+# here: the installer runs below must never reach the real install.
+unset GAUDI_HELPER_DIR GAUDI_HELPER_BRANCH GAUDI_HELPER_PROFILE
+
 #   install_for <shell> <profile file name>
 install_for() {
     local shell_name="$1"
@@ -378,6 +384,21 @@ check "update: the new upstream commit is checked out" test -f "$update_home/.ga
 check "update: the install is at the upstream commit" test "$(git -C "$update_home/.gaudi/gaudi-helper" rev-parse HEAD 2>/dev/null)" = "$(git -C "$helper_repo" rev-parse HEAD)"
 check "update: the install stays on its branch" test "$(git -C "$update_home/.gaudi/gaudi-helper" branch --show-current 2>/dev/null)" = "main"
 check "update: updating again with nothing new succeeds" install_update
+
+# GAUDI_HELPER_BRANCH also picks the branch of the first clone
+git -C "$helper_repo" branch other-branch >/dev/null
+branch_home="$tmp_dir/install-branch"
+mkdir -p "$branch_home/.gaudi"
+install_branch() {
+    env HOME="$branch_home" \
+        GAUDI="$branch_home/.gaudi" \
+        GAUDI_HELPER_REPO="file://$helper_repo" \
+        GAUDI_HELPER_BRANCH="other-branch" \
+        GAUDI_HELPER_SHELL="bash" \
+        /bin/bash "$ROOT_DIR/install.sh"
+}
+check "branch: the first install with GAUDI_HELPER_BRANCH succeeds" install_branch
+check "branch: the clone is on that branch" test "$(git -C "$branch_home/.gaudi/gaudi-helper" branch --show-current 2>/dev/null)" = "other-branch"
 
 # A profile written by an earlier installer sources bash-preexec under its old,
 # misspelt file name before the helper: that must keep working.

@@ -19,17 +19,8 @@ gaudi_helper_detect_shell() {
         shell_name="${SHELL##*/}"
     fi
 
-    if [[ -z "$shell_name" ]]; then
-        if [[ -n "${ZSH_VERSION:-}" ]]; then
-            shell_name="zsh"
-        elif [[ -n "${BASH_VERSION:-}" ]]; then
-            shell_name="bash"
-        else
-            shell_name="bash"
-        fi
-    fi
-
-    printf "%s" "$shell_name"
+    # The installer itself always runs under Bash
+    printf "%s" "${shell_name:-bash}"
 }
 
 # The profile file of a supported shell. Fails for any other shell: the lines

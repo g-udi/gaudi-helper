@@ -14,11 +14,15 @@ log() {
 clone_helper() {
     local repo="$1"
     local target="$2"
+    local -a clone_args=()
+
+    # GAUDI_HELPER_BRANCH picks the branch; without it the default one is cloned
+    [[ -z "$GAUDI_HELPER_BRANCH" ]] || clone_args=(--branch "$GAUDI_HELPER_BRANCH")
 
     if [[ -d "$repo" && "$repo" != http://* && "$repo" != https://* && "$repo" != git@* ]]; then
-        git clone "$repo" "$target"
+        git clone ${clone_args[@]+"${clone_args[@]}"} "$repo" "$target"
     else
-        git clone --depth=1 "$repo" "$target"
+        git clone --depth=1 ${clone_args[@]+"${clone_args[@]}"} "$repo" "$target"
     fi
 }
 
