@@ -114,7 +114,7 @@ gaudi_helper_normalize_command() {
 # value is not mistaken for a package name.
 gaudi_helper_value_options() {
     case "$1" in
-        brew|cask|tap)
+        brew|tap)
             printf "%s" "--[a-z0-9-]*dir|--language|--cc|--env|--bottle-arch|--os|--arch"
             ;;
         npm)
@@ -286,13 +286,6 @@ gaudi_helper_detect_install() {
                 target="brew"
             fi
             packages="$(gaudi_helper_filter_package_args "$rest" brew)"
-            ;;
-        brew:cask)
-            action="${rest%% *}"
-            [[ "$action" == "install" ]] || return 1
-            rest="${rest#"$action"}"
-            target="cask"
-            packages="$(gaudi_helper_filter_package_args "$rest" cask)"
             ;;
         brew:tap)
             target="tap"
@@ -534,7 +527,7 @@ gaudi_helper_list_files() {
 
     gaudi_helper_find_templates \
         \( -iname "*.${list_type}.list.sh" -o -iname "*.${list_type}.sh" -o -iname "*.${list_type}-*.list.sh" -o -iname "*.${list_type}-*.sh" \) \
-        ! -iname "*.hooks.sh"
+        ! -iname "*.hooks.sh" ! -iname "*.configs.*"
 }
 
 # The Brewfile an entry type goes to when no Brewfile holds that type yet
@@ -744,8 +737,11 @@ GAUDI_HELPER_LIST_PLAN='
     BEGIN {
         key = ENVIRON["GAUDI_HELPER_KEY"]
         wanted = ENVIRON["GAUDI_HELPER_FILE"]
+        # An item is "name" or "name::description", in double or single quotes
         plain = "\"" key "\""
         described = "\"" key "::"
+        plain_single = "\047" key "\047"
+        described_single = "\047" key "::"
     }
 
     {
@@ -763,7 +759,7 @@ GAUDI_HELPER_LIST_PLAN='
             if (text ~ /^[ \t]*#/) {
                 continue
             }
-            if (index(text, plain) > 0 || index(text, described) > 0) {
+            if (index(text, plain) > 0 || index(text, described) > 0 || index(text, plain_single) > 0 || index(text, described_single) > 0) {
                 printf "present\t%s\n", file
                 found = 1
                 exit
@@ -797,7 +793,8 @@ GAUDI_HELPER_LIST_PLAN='
 GAUDI_HELPER_LIST_ADD='
     BEGIN {
         entry = ENVIRON["GAUDI_HELPER_ENTRY"]
-        opening = "^[ \t]*" ENVIRON["GAUDI_HELPER_ARG"] "=\\("
+        # name=( or declare -a name=( : Gaudi reads both
+        opening = "^[ \t]*(declare[ \t]+(-[A-Za-z]+[ \t]+)*)?" ENVIRON["GAUDI_HELPER_ARG"] "=\\("
     }
 
     state == 0 && $0 ~ opening {
@@ -871,7 +868,7 @@ gaudi_helper_describe() {
     local info=""
 
     info="$(gaudi_helper_get_software_info "$1" "$2" 2>/dev/null)" || return 0
-    gaudi_helper_one_line "${info#*::}"
+    gaudi_helper_one_line "$info"
 }
 
 #   gaudi_helper_add_to_brewfile <type> <name> <Brewfile line> [key] [lookup type]
@@ -1073,13 +1070,14 @@ gaudi_helper_process_command() {
 
 # --- Shell hooks -------------------------------------------------------------------
 
-# Remember the command only when it names a package manager somewhere. This
-# runs before every interactive command, so it is one `case` and nothing is
-# started for an ordinary command (ls, cd, git ...); whether it really is an
-# install is worked out after it succeeded.
+# Remember the command only when a package manager is one of its words (first,
+# or after sudo, env, a variable ...). This runs before every interactive
+# command, so it is one `case` and nothing is started for an ordinary command
+# (ls, cd, git checkout master ...); whether it really is an install is worked
+# out after it succeeded.
 gaudi_helper_preexec() {
-    case "$1" in
-        *brew*|*mas*|*npm*|*uv*|*pipx*|*cargo*|*go*|*code*|*gem*|*apt*|*dnf*|*pacman*|*zypper*)
+    case " $1" in
+        *" brew "*|*" mas "*|*" npm "*|*" uv "*|*" pipx "*|*" cargo "*|*" go "*|*" code "*|*" gem "*|*" apt "*|*" apt-get "*|*" dnf "*|*" dnf5 "*|*" pacman "*|*" zypper "*)
             GAUDI_HELPER_PENDING_COMMAND="$1"
             ;;
         *)

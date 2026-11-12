@@ -80,7 +80,6 @@ Gaudi Helper tracks simple install commands:
 brew install jq
 brew install owner/tap/formula
 brew install --cask firefox
-brew cask install firefox
 brew tap owner/tools
 mas install 497799835
 npm install -g prettier
@@ -137,7 +136,7 @@ Software Homebrew can install goes to a Brewfile, as one line per package:
 | --- | --- | --- |
 | `brew install <formula>` | `brew "<formula>"` | `core.Brewfile` |
 | `brew tap <owner/repo> [URL]` | `tap "<owner/repo>"` (with the URL when one was given) | `core.Brewfile` |
-| `brew install --cask <cask>`, `brew cask install <cask>` | `cask "<cask>"` | `apps.Brewfile` |
+| `brew install --cask <cask>` | `cask "<cask>"` | `apps.Brewfile` |
 | `mas install <id>`, `mas get <id>`, `mas purchase <id>` | `mas "<App name>", id: <id>` | `appstore.Brewfile` |
 | `npm install -g <package>` | `npm "<package>"` | `npm.Brewfile` |
 | `uv tool install <tool>`, `pipx install <tool>` | `uv "<tool>"` | `python.Brewfile` |
@@ -170,13 +169,13 @@ System packages and Ruby gems stay in Gaudi lists, a Bash array of `"package::de
 | `zypper install`, `zypper in` | `default.zypper.list.sh` |
 | `gem install` | `default.gem.list.sh` |
 
-An existing list of that type is used when there is one, under any of the names Gaudi reads (for example `default.apt-get.sh`); `default.<type>.list.sh` is preferred when several exist. The new item is inserted before the closing `)` of the array. If the array cannot be found, or the result would not be valid Bash, the file is left untouched and the helper prints a warning.
+An existing list of that type is used when there is one, under any of the names Gaudi reads (for example `default.apt-get.sh`); `default.<type>.list.sh` is preferred when several exist. The new item is inserted before the closing `)` of the array, whether it is written `name=(` or `declare -a name=(`. If the array cannot be found, or the result would not be valid Bash, the file is left untouched and the helper prints a warning.
 
 Duplicate entries are skipped. An entry counts as present when any Brewfile (or any list of that type) in the templates already has it: formulae and casks are compared by name, so `owner/tap/jq` and `jq` are the same package; App Store apps are compared by id.
 
 If the templates directory does not exist, the helper logs a warning and does not block your shell command.
 
-The helper costs an ordinary command nothing: before each command the shell hook only checks, with one built-in comparison, whether the line names a package manager at all. The parsing happens after such a command succeeded.
+The helper costs an ordinary command nothing: before each command the shell hook only checks, with one built-in comparison, whether a package manager is one of the words of the line (`git checkout master` is not kept just because it contains `mas`). The parsing happens after such a command succeeded.
 
 Run `gaudi check` to validate the templates at any time.
 
@@ -197,7 +196,7 @@ Useful environment variables:
 | `GAUDI_HELPER_NO_HOOKS` | `false` | `true` loads the helper functions without registering shell hooks |
 | `GAUDI_HELPER_SHELL` | detected from `$SHELL` | Installer: `bash` or `zsh`. With any other shell the installer stops and changes no profile |
 | `GAUDI_HELPER_PROFILE` | the shell's profile | Installer: the profile file to add the lines to |
-| `GAUDI_HELPER_BRANCH` | the repository's default branch | Installer: branch to update to |
+| `GAUDI_HELPER_BRANCH` | the repository's default branch | Installer: branch to clone, and to update to |
 | `GAUDI_HELPER_REPO` | `https://github.com/g-udi/gaudi-helper.git` | Installer: repository to clone |
 
 `GAUDI_HELPER_NO_HOOKS=true` is useful for tests or manual sourcing when you want the helper functions without registering shell hooks.
@@ -219,3 +218,7 @@ GAUDI_HELPER_TEST_GAUDI=/path/to/gaudi ./test/test.sh
 ```
 
 [GitHub Actions](https://github.com/g-udi/gaudi-helper/actions/workflows/tests.yml) runs the suite on macOS and Ubuntu for every pull request and every push to `main`, with [Gaudi](https://github.com/g-udi/gaudi) checked out beside the helper. There the `gaudi check` step is not optional: without the Gaudi checkout the run fails.
+
+## License
+
+[MIT](LICENSE)

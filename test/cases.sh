@@ -114,7 +114,6 @@ detects 'brew install jq' 'brew|jq'
 detects 'brew install jq ripgrep' 'brew|jq ripgrep'
 detects 'brew install --cask firefox' 'cask|firefox'
 detects 'brew install firefox --cask' 'cask|firefox'
-detects 'brew cask install firefox' 'cask|firefox'
 detects 'brew install owner/tap/widget' 'brew|owner/tap/widget'
 detects 'brew install -f jq' 'brew|jq'
 detects 'command brew install --formula jq' 'brew|jq'
@@ -291,7 +290,7 @@ brew "jq"
 brew "owner/tools/widget"'
 
 run 'brew install --cask kitty'
-run 'brew cask install kitty'
+run 'brew install kitty --cask'
 # `brew install <name>` that ended up installing a cask (see the fake Caskroom)
 run 'brew install firefox'
 
@@ -559,6 +558,26 @@ printf '%s\n' ')' >> "$existing/lists/default.pacman.list.sh"
 run 'sudo pacman -S ripgrep'
 ok "existing: the same list accepts the package once it is valid" has_line "$existing/lists/default.pacman.list.sh" '    "ripgrep"'
 
+# A list made with `declare -a` and items in single quotes: Gaudi reads both
+declared="$work/declared"
+command mkdir -p "$declared/lists" "$declared/configs"
+use_templates "$declared"
+printf '%s\n' '# @Name: Default' '# @List: aptList' 'declare -a aptList=(' "    'htop'" "    'tree::Directory listing'" ')' > "$declared/lists/default.apt.list.sh"
+# A configuration script whose name happens to contain ".apt-" is not a list
+printf '%s\n' '_info="Tune the apt cache"' '_command() { true; }' > "$declared/configs/tune.apt-cache.configs.debian.sh"
+is "declared: a configuration script is not taken for a list" "$declared/lists/default.apt.list.sh" "$(gaudi_helper_list_files apt)"
+command rm -f "$declared/configs/tune.apt-cache.configs.debian.sh"
+command rmdir "$declared/configs"
+run 'sudo apt-get install -y htop tree jq'
+file_is "declared: a declare -a array is extended, and single-quoted items count as present" "$declared/lists/default.apt.list.sh" "# @Name: Default
+# @List: aptList
+declare -a aptList=(
+    'htop'
+    'tree::Directory listing'
+    \"jq::Description of jq https://example.invalid/jq\"
+)"
+use_templates "$existing"
+
 # What Gaudi gets when it sources the list: the description stays text
 evil_value="$(cd "$work" && command bash -c 'source "$1" >/dev/null; printf "%s" "${aptList[3]}"' _ "$existing/lists/default.apt-get.sh")"
 is "existing: a description is escaped, not expanded, when Gaudi sources the list" \
@@ -604,6 +623,11 @@ for kept in 'brew install jq' 'sudo apt-get install -y jq' 'FOO=1 npm i -g x' 'm
     'sudo pacman -S x' 'zypper in x'; do
     gaudi_helper_preexec "$kept"
     is "hooks: a command that names a package manager is kept: $kept" "$kept" "${GAUDI_HELPER_PENDING_COMMAND:-}"
+done
+# A package manager's name inside another word is not enough
+for dropped in 'git checkout master' 'cd ~/code/app' 'vim category.go' 'ls /opt/homebrew/bin' 'echo cargoes'; do
+    gaudi_helper_preexec "$dropped"
+    is "hooks: a command that only contains a manager's name in a word is not kept: $dropped" "" "${GAUDI_HELPER_PENDING_COMMAND:-}"
 done
 unset GAUDI_HELPER_PENDING_COMMAND
 
